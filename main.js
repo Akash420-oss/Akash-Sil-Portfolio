@@ -66,7 +66,7 @@
       {
         id: "monalisaoni", kind: "planet", name: "Project Monalisa Oni", cls: "offensive network intelligence",
         repo: "https://github.com/Akash420-oss/Project_Monalisa_Offensive_Network_Intelligence", status: "public repo",
-        orbit: { r: 34, tilt: 0.05, node: 0.4, phase: 0.2, spin: 0.9 },
+        orbit: { r: 30, tilt: 0.05, node: 0.4, phase: 0.2, spin: 0.9 },
         r: 5.0, color: "#C084FC", rings: false,
         satellites: [{ n: "packet-forge" }, { n: "traffic-tap" }, { n: "svc-fingerprint" }],
         tagline: "Your words, weaponized",
@@ -85,7 +85,7 @@
       {
         id: "malvoid", kind: "planet", name: "Malvoid", cls: "static malware analysis",
         repo: "https://aur.archlinux.org/packages/malvoid-analysis", status: "public repo",
-        orbit: { r: 49, tilt: 0.13, node: 2.1, phase: 2.4, spin: 0.6 },
+        orbit: { r: 42, tilt: 0.13, node: 2.1, phase: 2.4, spin: 0.6 },
         r: 6.4, color: "#7C6BFF", rings: true,
         satellites: [{ n: "metadata-parser" }, { n: "hex-editor" }, { n: "strings-extractor" }],
         tagline: "Static malware analysis made accessible and automated.",
@@ -103,7 +103,7 @@
       {
         id: "daredevil", kind: "planet", name: "Daredevil Game", cls: "reverse engineering",
         repo: "https://github.com/Akash420-oss/Dare-Devil", status: "public repo",
-        orbit: { r: 64, tilt: 0.03, node: 4.4, phase: 4.0, spin: 1.1 },
+        orbit: { r: 52, tilt: 0.03, node: 4.4, phase: 4.0, spin: 1.1 },
         r: 5.6, color: "#A855F7", rings: false,
         satellites: [{ n: "reverse-engineering-game" }, { n: "official-write-up" }],
         tagline: "A comprehensive reverse engineering challenge game.",
@@ -119,7 +119,7 @@
       {
         id: "monalisa", kind: "planet", name: "Project Monalisa", cls: "network analysis",
         repo: "https://aur.archlinux.org/packages/project-monalisa", status: "public repo",
-        orbit: { r: 74, tilt: 0.06, node: 0.1, phase: 0.1, spin: 0.2 },
+        orbit: { r: 64, tilt: 0.06, node: 0.1, phase: 0.1, spin: 0.2 },
         r: 5.0, color: "#ACE5EE", rings: false,
         satellites: [
           { n: "packet-crafter" },
@@ -147,7 +147,7 @@
       {
         id: "daredevilweb", kind: "planet", name: "Daredevil Web Game", cls: "web based hacking",
         repo: "https://github.com/Akash420-oss/Dare-Devil-Web", status: "public repo",
-        orbit: { r: 44, tilt: 0.02, node: 0.7, phase: 4.0, spin: 1.2 },
+        orbit: { r: 90, tilt: 0.02, node: 0.7, phase: 4.0, spin: 1.2 },
         r: 5.6, color: "#FFBC75", rings: false,
         satellites: [{ n: "web-game" }, { n: "dom-manupulation" }],
         tagline: "A comprehensive reverse engineering challenge game.",
@@ -164,7 +164,7 @@
       {
         id: "driveconnect", kind: "planet", name: "Drive Connect", cls: "iot utility",
         repo: "https://github.com/Akash420-oss/Drive-Connect", status: "public repo",
-        orbit: { r: 80, tilt: 0.10, node: 1.2, phase: 0.9, spin: 0.5 },
+        orbit: { r: 118, tilt: 0.10, node: 1.2, phase: 0.9, spin: 0.5 },
         r: 4.8, color: "#6D28D9", rings: false,
         satellites: [
           { n: "wifi-car" },
@@ -192,7 +192,7 @@
       {
         id: "loveria", kind: "planet", name: "LoVeriA ViRus", cls: "love malware",
         repo: "https://github.com/Akash420-oss/LoVeriA-ViRus", status: "public repo",
-        orbit: { r: 97, tilt: 0.16, node: 3.3, phase: 5.4, spin: 1.4 },
+        orbit: { r: 148, tilt: 0.16, node: 3.3, phase: 5.4, spin: 1.4 },
         r: 4.2, color: "#D8B4FE", rings: false,
         satellites: [{ n: "decryption_engine" }, { n: "mock_payload" }],
         tagline: "A high-stakes 'love test' decryption challenge with simulated consequences.",
@@ -209,7 +209,7 @@
 
       {
         id: "contributions", kind: "planet", name: "Community & Publications", cls: "community impact",
-        orbit: { r: 113, tilt: 0.07, node: 5.6, phase: 3.1, spin: 2.0 },
+        orbit: { r: 180, tilt: 0.07, node: 5.6, phase: 3.1, spin: 2.0 },
         r: 3.8, color: "#8B5CF6", rings: false,
         satellites: [{ n: "medium-writeups" }, { n: "aur-packages" }, { n: "garuda-forum" }, { n: "ijrar" }, { n: "tryhackme" }],
         tagline: "Giving back to the security and open-source communities.",
@@ -1322,7 +1322,7 @@
       cam.tx = 0; cam.ty = 0; cam.tz = 0;
       cam.dist = 520; cam.yaw = 0.15; cam.pitch = 0.78;
       $("#hud").classList.add("live");
-      flyTo({ dist: 215, yaw: 0.62, pitch: 0.40 }, REDUCED ? 0.3 : (dur || 2.4), function () {
+      flyTo({ dist: 290, yaw: 0.62, pitch: 0.40 }, REDUCED ? 0.3 : (dur || 2.4), function () {
         toast("system acquired · 6 bodies · click the sun for a shell");
         armAsteroidSystem();
       });
@@ -1817,7 +1817,7 @@
 
     function resetView() {
       trackId = null; focusId = null; closePanel();
-      flyTo({ tx: 0, ty: 0, tz: 0, dist: 215, yaw: 0.62, pitch: 0.40 }, 1.4);
+      flyTo({ tx: 0, ty: 0, tz: 0, dist: 290, yaw: 0.62, pitch: 0.40 }, 1.4);
       toast("free orbit restored");
     }
 
@@ -2322,21 +2322,8 @@
 
     let alertTimer = null;
     function showThreatAlert(sev, name, defenderOrTarget, mode) {
-      const el = document.getElementById("threatAlert");
-      clearTimeout(alertTimer);
-      const isIntercept = mode === "intercepted";
-      el.className = "on " + sev;
-      const sevLabel = sev.toUpperCase() + " SEVERITY";
-      const statusLine = isIntercept
-        ? '<div class="ta-def">&#9679; INTERCEPTED BY: ' + (defenderOrTarget || "CORE").toUpperCase() + '</div>'
-        : '<div class="ta-hit">&#9679; PLANET BREACHED: ' + (defenderOrTarget || "?").toUpperCase() + '</div>';
-      el.innerHTML =
-        '<div class="ta-sev ' + sev + '">' + sevLabel + ' · THREAT DETECTED</div>' +
-        '<div class="ta-name">&#9651; ' + name + '</div>' +
-        statusLine;
-      alertTimer = setTimeout(function () {
-        el.className = "";
-      }, sev === "high" ? 4200 : sev === "medium" ? 3200 : 2200);
+      /* popup disabled — visual effects (beams, explosions, breach rings) still active */
+      return;
     }
 
 

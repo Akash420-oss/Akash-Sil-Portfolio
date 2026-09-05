@@ -658,13 +658,15 @@
 
     #launchpad .alt {
       margin-top: 16px;
-      font-size: 10px;
+      font-size: 12px;
       color: var(--phantom)
     }
 
     #launchpad .alt button {
       color: var(--orchid);
-      border-bottom: 1px dotted var(--edge)
+      font-size: 12px;
+      font-weight: 500;
+      border-bottom: 1px dotted var(--orchid)
     }
 
     #countdown {
