@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 60" width="600" height="60">
+  <rect width="600" height="60" fill="#050210"/>
+  <line x1="0" y1="30" x2="600" y2="30" stroke="#39FF88" stroke-width="0.5" opacity="0.3">
+    <animate attributeName="y1" values="0;60;0" dur="4s" repeatCount="indefinite"/>
+    <animate attributeName="y2" values="0;60;0" dur="4s" repeatCount="indefinite"/>
+  </line>
+  <text x="300" y="25" text-anchor="middle" fill="#6D28D9" font-family="monospace" font-size="10" letter-spacing="3">
+    SYSTEM STATUS
+  </text>
+  <text x="300" y="42" text-anchor="middle" fill="#39FF88" font-family="monospace" font-size="11">
+    ● online · lattice sealed · all planets nominal
+    <animate attributeName="opacity" values="1;0.5;1" dur="2s" repeatCount="indefinite"/>
+  </text>
+</svg>
