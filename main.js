@@ -329,6 +329,48 @@ function updateCamera() {
   bU.z = bF.x * bR.y - bF.y * bR.x;
 }
 
+let currentScreenCenterX = 0;
+let currentScreenCenterY = 0;
+let targetScreenCenterX = 0;
+let targetScreenCenterY = 0;
+
+function updateScreenCenter(dt) {
+  const overlay = $("#tourGuideOverlay");
+  const isOverlayOpen = overlay && overlay.classList.contains("open");
+  const isMobile = W <= 820 || (W / Math.max(1, H) < 1.1);
+
+  if (touring && isOverlayOpen) {
+    const rect = overlay.getBoundingClientRect();
+    if (isMobile) {
+      targetScreenCenterX = W * 0.5;
+      const isTopDocked = overlay.classList.contains("top-docked");
+      if (isTopDocked) {
+        const topGap = rect.bottom;
+        const bottomGap = H - 65;
+        targetScreenCenterY = topGap + Math.max(80, (bottomGap - topGap)) * 0.5;
+      } else {
+        const topbarEl = $("#topbar");
+        const topbarH = topbarEl ? topbarEl.getBoundingClientRect().height : 54;
+        const availableTop = topbarH + 10;
+        const availableBottom = Math.max(availableTop + 100, rect.top - 10);
+        targetScreenCenterY = availableTop + (availableBottom - availableTop) * 0.45;
+      }
+    } else {
+      targetScreenCenterX = (W - (rect.width || 380)) * 0.48;
+      targetScreenCenterY = H * 0.5;
+    }
+  } else {
+    targetScreenCenterX = W * 0.5;
+    targetScreenCenterY = H * 0.5;
+  }
+
+  if (!currentScreenCenterX) currentScreenCenterX = targetScreenCenterX;
+  if (!currentScreenCenterY) currentScreenCenterY = targetScreenCenterY;
+
+  currentScreenCenterX = lerp(currentScreenCenterX, targetScreenCenterX, clamp(dt * 5.0, 0, 1));
+  currentScreenCenterY = lerp(currentScreenCenterY, targetScreenCenterY, clamp(dt * 5.0, 0, 1));
+}
+
 function project(x, y, z) {
   const dx = x - eye.x, dy = y - eye.y, dz = z - eye.z;
   const cz = dx * bF.x + dy * bF.y + dz * bF.z;
@@ -336,7 +378,7 @@ function project(x, y, z) {
   const cx = dx * bR.x + dy * bR.y + dz * bR.z;
   const cyy = dx * bU.x + dy * bU.y + dz * bU.z;
   const f = focal / cz;
-  return { x: W * 0.5 + cx * f, y: H * 0.5 - cyy * f, z: cz, s: f };
+  return { x: currentScreenCenterX + cx * f, y: currentScreenCenterY - cyy * f, z: cz, s: f };
 }
 
 let neb = document.createElement("canvas");
@@ -1488,7 +1530,7 @@ function closeIdCard() {
 
     + '<div class="foot">Akash Sil &middot; security researcher &middot; press <kbd>Esc</kbd> to return to the star map</div>';
 
-  $("#resumeSheet").addEventListener("click", function (e) {
+  $("#resumeSheet")?.addEventListener("click", function (e) {
     if (e.target.closest("#resumeClose")) closeResume();
   });
 })();
@@ -1768,7 +1810,7 @@ function closeTerm() {
   inp.blur();
 }
 
-inp.addEventListener("keydown", function (e) {
+inp?.addEventListener("keydown", function (e) {
   if (e.key === "Enter") {
     const v = inp.value; inp.value = ""; runCmd(v);
   } else if (e.key === "ArrowUp") {
@@ -1819,28 +1861,369 @@ function resetView() {
   toast("free orbit restored");
 }
 
+const navSatellite = {
+  active: false,
+  x: 0, y: 0, z: 0,
+  targetX: 0, targetY: 0, targetZ: 0,
+  orbitAngle: 0,
+  screenPos: null,
+  targetScreenPos: null
+};
+
+function updateNavSatellite(dt) {
+  if (!navSatellite.active) return;
+  if (navSatellite.trackingAsteroid) {
+    if (navSatellite.trackingAsteroid.dead && asteroids.length) {
+      navSatellite.trackingAsteroid = asteroids[0];
+    }
+    if (navSatellite.trackingAsteroid && !navSatellite.trackingAsteroid.dead) {
+      const tgt = navSatellite.trackingAsteroid;
+      navSatellite.targetX = tgt.x !== undefined ? tgt.x : tgt.pos.x;
+      navSatellite.targetY = tgt.y !== undefined ? tgt.y : tgt.pos.y;
+      navSatellite.targetZ = tgt.z !== undefined ? tgt.z : tgt.pos.z;
+    }
+  }
+  navSatellite.orbitAngle += dt * 1.4;
+  const orbR = 22;
+  const desiredX = navSatellite.targetX + Math.cos(navSatellite.orbitAngle) * orbR;
+  const desiredY = navSatellite.targetY + Math.sin(navSatellite.orbitAngle * 0.7) * 9 + 12;
+  const desiredZ = navSatellite.targetZ + Math.sin(navSatellite.orbitAngle) * orbR;
+
+  navSatellite.x = lerp(navSatellite.x, desiredX, clamp(dt * 3.5, 0, 1));
+  navSatellite.y = lerp(navSatellite.y, desiredY, clamp(dt * 3.5, 0, 1));
+  navSatellite.z = lerp(navSatellite.z, desiredZ, clamp(dt * 3.5, 0, 1));
+
+  navSatellite.screenPos = project(navSatellite.x, navSatellite.y, navSatellite.z);
+  navSatellite.targetScreenPos = project(navSatellite.targetX, navSatellite.targetY, navSatellite.targetZ);
+}
+
+function drawArtificialSatellite(p) {
+  if (!p) return;
+  const s = clamp(p.s || 1, 0.4, 2.5);
+  const podW = Math.max(16, 24 * s);
+  const podH = Math.max(12, 18 * s);
+  const wingW = Math.max(20, 32 * s);
+  const wingH = Math.max(6, 9 * s);
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+
+  if (navSatellite.targetScreenPos) {
+    const relX = navSatellite.targetScreenPos.x - p.x;
+    const relY = navSatellite.targetScreenPos.y - p.y;
+    ctx.save();
+    ctx.strokeStyle = "rgba(57, 255, 136, 0.45)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(relX, relY);
+    ctx.stroke();
+
+    const grad = ctx.createLinearGradient(0, 0, relX, relY);
+    grad.addColorStop(0, "rgba(57, 255, 136, 0.35)");
+    grad.addColorStop(1, "rgba(57, 255, 136, 0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(relX - 10, relY);
+    ctx.lineTo(relX + 10, relY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.fillStyle = "#1E3A8A";
+  ctx.strokeStyle = "#38BDF8";
+  ctx.lineWidth = 1;
+  ctx.fillRect(-podW / 2 - wingW, -wingH / 2, wingW, wingH);
+  ctx.strokeRect(-podW / 2 - wingW, -wingH / 2, wingW, wingH);
+
+  ctx.fillRect(podW / 2, -wingH / 2, wingW, wingH);
+  ctx.strokeRect(podW / 2, -wingH / 2, wingW, wingH);
+
+  ctx.strokeStyle = "rgba(56, 189, 248, 0.6)";
+  ctx.beginPath();
+  ctx.moveTo(-podW / 2 - wingW / 2, -wingH / 2);
+  ctx.lineTo(-podW / 2 - wingW / 2, wingH / 2);
+  ctx.moveTo(podW / 2 + wingW / 2, -wingH / 2);
+  ctx.lineTo(podW / 2 + wingW / 2, wingH / 2);
+  ctx.stroke();
+
+  const bodyGrad = ctx.createLinearGradient(-podW / 2, -podH / 2, podW / 2, podH / 2);
+  bodyGrad.addColorStop(0, "#D8B4FE");
+  bodyGrad.addColorStop(0.5, "#6D28D9");
+  bodyGrad.addColorStop(1, "#1E0B38");
+  ctx.fillStyle = bodyGrad;
+  ctx.strokeStyle = "#A855F7";
+  ctx.lineWidth = 1.2;
+  ctx.fillRect(-podW / 2, -podH / 2, podW, podH);
+  ctx.strokeRect(-podW / 2, -podH / 2, podW, podH);
+
+  ctx.strokeStyle = "#39FF88";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(0, -podH / 2 - 4, 6, Math.PI, 0);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, -podH / 2);
+  ctx.lineTo(0, -podH / 2 - 4);
+  ctx.stroke();
+
+  const blink = (Math.sin(T * 8) + 1) / 2;
+  ctx.fillStyle = blink > 0.4 ? "#39FF88" : "#FF6B6B";
+  ctx.beginPath();
+  ctx.arc(0, -podH / 2 - 5, 2.2, 0, TAU);
+  ctx.fill();
+
+  ctx.font = "8px " + FONT;
+  ctx.fillStyle = "#39FF88";
+  ctx.textAlign = "center";
+  ctx.fillText("NAV-SATELLITE", 0, podH / 2 + 10);
+
+  ctx.restore();
+  queueGlow(p.x, p.y, podW * 2.2, "rgba(57, 255, 136, 0.45)", 0.8);
+}
+
+function updateTourPointerSvg() {
+  const svg = $("#tourSvgOverlay");
+  const overlay = $("#tourGuideOverlay");
+  if (!svg || !overlay) return;
+
+  if (!touring || !navSatellite.active || navSatellite.hidePointer) {
+    svg.classList.remove("active");
+    return;
+  }
+  svg.classList.add("active");
+
+  const pulse = $("#tourTargetPulse");
+  const centerDot = $("#tourTargetCenter");
+  const laserLine = $("#tourLaserLine");
+  const cardLine = $("#tourCardLine");
+
+  let targetScreen = navSatellite.targetScreenPos || navSatellite.screenPos;
+  if (!targetScreen) return;
+
+  const tx = targetScreen.x;
+  const ty = targetScreen.y;
+
+  if (pulse) {
+    pulse.setAttribute("cx", tx);
+    pulse.setAttribute("cy", ty);
+  }
+  if (centerDot) {
+    centerDot.setAttribute("cx", tx);
+    centerDot.setAttribute("cy", ty);
+  }
+
+  if (navSatellite.screenPos) {
+    const cardRect = overlay.getBoundingClientRect();
+    const cardX = clamp(navSatellite.screenPos.x, cardRect.left + 20, cardRect.right - 20);
+    const cardY = navSatellite.screenPos.y < cardRect.top ? cardRect.top : cardRect.bottom;
+
+    if (cardLine) {
+      cardLine.setAttribute("x1", cardX);
+      cardLine.setAttribute("y1", cardY);
+      cardLine.setAttribute("x2", navSatellite.screenPos.x);
+      cardLine.setAttribute("y2", navSatellite.screenPos.y);
+    }
+    if (laserLine) {
+      laserLine.setAttribute("x1", navSatellite.screenPos.x);
+      laserLine.setAttribute("y1", navSatellite.screenPos.y);
+      laserLine.setAttribute("x2", tx);
+      laserLine.setAttribute("y2", ty);
+    }
+  }
+}
+
+const TOUR_STEPS = [
+  {
+    title: "SUN: CORE TERMINAL & SECURITY SHELL",
+    sub: "CENTRAL SYSTEM HUB · REAL SSH COMMAND LINE",
+    targetType: "star",
+    targetObj: function () { return world.star; },
+    camera: { tx: 0, ty: 0, tz: 0, dist: 65, pitch: 0.22, yaw: 0.6 },
+    body: "<p>Welcome to Akash Sil's orbital portfolio! The <strong>Sun</strong> at the center is a live command-line terminal shell!</p>" +
+      "<ul style='margin:8px 0;padding-left:18px'>" +
+      "<li><strong>Root Command Node:</strong> Click the sun or press <code>T</code> to launch the terminal.</li>" +
+      "<li><strong>Interactive Shell:</strong> Type <code>help</code>, <code>whoami</code>, <code>skills</code>, or <code>sys</code> to explore.</li>" +
+      "<li><strong>Constellation Scanner:</strong> Type <code>scan</code> in the shell to decode the identity grid.</li>" +
+      "</ul>"
+  },
+  {
+    title: "PLANETS: SECURITY RESEARCH & PROJECTS",
+    sub: "VAPT · REVERSE ENGINEERING · MALWARE ANALYSIS · IOT",
+    targetType: "planet",
+    targetObj: function () { return world.byId["daredevilweb"] || world.planets[0]; },
+    camera: { tx: 0, ty: 0, tz: 0, dist: 170, pitch: 0.45, yaw: 0.8 },
+    body: "<p>Each orbiting planet represents an original security project created by Akash Sil:</p>" +
+      "<ul style='margin:8px 0;padding-left:18px'>" +
+      "<li><strong>Monalisa Oni:</strong> Conversational network recon &amp; payload crafting platform.</li>" +
+      "<li><strong>Malvoid:</strong> Automated static malware triage &amp; PE string analysis tool on Arch AUR.</li>" +
+      "<li><strong>Daredevil Game:</strong> Binary reverse-engineering challenge suite with GDB write-ups.</li>" +
+      "<li><strong>Drive Connect:</strong> Dual-mode TCP/UDP IoT smart car firmware (NodeMCU ESP8266).</li>" +
+      "</ul>" +
+      "<p><em>Click any planet during or after the tour to open its full technical dossier &amp; repo link!</em></p>"
+  },
+  {
+    title: "ASTEROIDS: THREAT DEBRIS & DEFENSE GRID",
+    sub: "REAL-TIME CVE ANOMALIES & DEFENSIVE INTERCEPT",
+    targetType: "asteroids",
+    targetObj: function () {
+      if (!asteroids.length) spawnAsteroid();
+      return asteroids[0] || world.planets[1];
+    },
+    camera: { tx: 40, ty: 15, tz: 30, dist: 130, pitch: 0.35, yaw: 1.2 },
+    body: "<p>Notice the tumbling asteroids passing through space? They represent incoming <strong>security threats, CVE vulnerabilities, and malicious payloads</strong>.</p>" +
+      "<ul style='margin:8px 0;padding-left:18px'>" +
+      "<li><strong>Automated Threat Scanning:</strong> Asteroids spawn dynamically with low, medium, or high severity metrics.</li>" +
+      "<li><strong>Defensive Interception:</strong> The system's defense grid targets incoming threats with energy beams before impact.</li>" +
+      "</ul>"
+  },
+  {
+    title: "CONSTELLATION: BIOMETRIC IDENTITY",
+    sub: "9-STAR MATRIX · PROFILE & CONTACT LINKS",
+    targetType: "field",
+    targetObj: function () { return world.field; },
+    camera: { tx: -58, ty: 46, tz: -72, dist: 75, pitch: 0.18, yaw: 0.4 },
+    body: "<p>Constellation ORION is a 9-star biometric lattice containing Akash Sil's researcher identity.</p>" +
+      "<ul style='margin:8px 0;padding-left:18px'>" +
+      "<li><strong>Biometric Match:</strong> Scanning this sector decodes the star positions into a progressive portrait reveal.</li>" +
+      "<li><strong>Researcher Profile:</strong> Cybersecurity Researcher with hands-on VAPT and reverse engineering experience.</li>" +
+      "<li><strong>Direct Links:</strong> Access GitHub (<code>Akash420-oss</code>), LinkedIn, Arch AUR packages, and direct email contact.</li>" +
+      "</ul>"
+  }
+];
+
 let tourTimers = [];
 let touring = false;
-function stopTour() { touring = false; tourTimers.forEach(clearTimeout); tourTimers = []; }
+let currentTourStep = 0;
+
+function stopTour() {
+  if (!touring) return;
+  touring = false;
+  navSatellite.active = false;
+  tourTimers.forEach(clearTimeout);
+  tourTimers = [];
+
+  const svg = $("#tourSvgOverlay");
+  const overlay = $("#tourGuideOverlay");
+  if (svg) svg.classList.remove("active");
+  if (overlay) {
+    overlay.classList.remove("open");
+    overlay.classList.remove("collapsed");
+  }
+
+  const hint = $("#recruiterHint");
+  if (hint) hint.style.display = "";
+
+  toast("Tour completed · free orbit restored");
+}
+
+function setTourStep(idx) {
+  if (idx < 0) idx = 0;
+  if (idx >= TOUR_STEPS.length) {
+    stopTour();
+    return;
+  }
+  currentTourStep = idx;
+  navSatellite.trackingAsteroid = null;
+  navSatellite.hidePointer = false;
+  tourTimers.forEach(clearTimeout);
+  tourTimers = [];
+  const step = TOUR_STEPS[idx];
+
+  const badge = $("#tourStepBadge");
+  const title = $("#tourTitle");
+  const sub = $("#tourSub");
+  const body = $("#tourBody");
+  if (badge) badge.textContent = "STEP " + (idx + 1) + "/" + TOUR_STEPS.length;
+  if (title) title.textContent = step.title;
+  if (sub) sub.textContent = step.sub;
+  if (body) body.innerHTML = step.body;
+
+  const dotsContainer = $("#tourDots");
+  if (dotsContainer) {
+    dotsContainer.innerHTML = "";
+    TOUR_STEPS.forEach(function (_, i) {
+      const dot = document.createElement("span");
+      dot.className = "tour-dot" + (i === idx ? " active" : "");
+      dot.addEventListener("click", function () { setTourStep(i); });
+      dotsContainer.appendChild(dot);
+    });
+  }
+
+  const prevBtn = $("#tourPrevBtn");
+  const nextBtn = $("#tourNextBtn");
+  if (prevBtn) prevBtn.disabled = (idx === 0);
+  if (nextBtn) nextBtn.textContent = (idx === TOUR_STEPS.length - 1) ? "Finish ➔" : "Next »";
+
+  let targetObj = step.targetObj();
+  if (step.targetType === "star") {
+    navSatellite.targetX = 0; navSatellite.targetY = 0; navSatellite.targetZ = 0;
+    flyTo(step.camera, 1.4);
+    closePanel();
+    const timer1 = setTimeout(function () {
+      if (touring && currentTourStep === idx) {
+        openTerm();
+        navSatellite.hidePointer = true;
+        const timer2 = setTimeout(function () {
+          if (touring && currentTourStep === idx) {
+            closeTerm();
+            navSatellite.hidePointer = false;
+          }
+        }, 2500);
+        tourTimers.push(timer2);
+      }
+    }, 1500);
+    tourTimers.push(timer1);
+  } else if (step.targetType === "planet") {
+    const p = targetObj || world.planets[world.planets.length - 1] || world.planets[0];
+    if (p) navSatellite.trackingAsteroid = p;
+    navSatellite.targetX = p.pos.x; navSatellite.targetY = p.pos.y; navSatellite.targetZ = p.pos.z;
+    flyTo({ tx: p.pos.x, ty: p.pos.y, tz: p.pos.z, dist: 50, pitch: 0.3, yaw: cam.yaw }, 1.4);
+    closePanel();
+  } else if (step.targetType === "asteroids") {
+    asteroidSystemActive = true;
+    if (!asteroids.length) spawnAsteroid();
+    const ast = asteroids[0] || world.planets[1];
+    if (ast && ast.x !== undefined) navSatellite.trackingAsteroid = ast;
+    navSatellite.targetX = ast.x || 30; navSatellite.targetY = ast.y || 10; navSatellite.targetZ = ast.z || 30;
+    flyTo(step.camera, 1.4);
+    closePanel();
+  } else if (step.targetType === "field") {
+    const f = world.field;
+    navSatellite.targetX = f.pos.x; navSatellite.targetY = f.pos.y; navSatellite.targetZ = f.pos.z;
+    flyTo(step.camera, 1.4);
+    closePanel();
+    startScan();
+  }
+}
+
+function nextTourStep() {
+  setTourStep(currentTourStep + 1);
+}
+
+function prevTourStep() {
+  setTourStep(currentTourStep - 1);
+}
+
 function startTour() {
-  if (touring) { stopTour(); toast("tour cancelled"); return; }
+  if (touring) { stopTour(); return; }
   touring = true;
-  const stops = world.planets.slice();
-  let d = 0;
-  stops.forEach(function (p, i) {
-    tourTimers.push(setTimeout(function () {
-      if (!touring) return;
-      focusBody(p, true);
-      toast((i + 1) + "/" + stops.length + " · " + p.name);
-    }, d));
-    d += 7000;
-  });
-  tourTimers.push(setTimeout(function () {
-    if (!touring) return;
-    closePanel(); resetScan(); startScan();
-  }, d));
-  tourTimers.push(setTimeout(function () { touring = false; }, d + 8000));
-  toast("tour engaged · click anywhere to take over");
+  asteroidSystemActive = true;
+  navSatellite.active = true;
+
+  const hint = $("#recruiterHint");
+  if (hint) hint.style.display = "none";
+
+  const svg = $("#tourSvgOverlay");
+  const overlay = $("#tourGuideOverlay");
+  if (svg) svg.classList.add("active");
+  if (overlay) overlay.classList.add("open");
+
+  setTourStep(0);
+  toast("Artificial Satellite Guided Tour active");
 }
 
 const stage = $("#stage");
@@ -1856,7 +2239,7 @@ function pick(mx, my) {
   return best;
 }
 
-stage.addEventListener("pointerdown", function (e) {
+stage?.addEventListener("pointerdown", function (e) {
   if (e.target !== cv) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 1) {
@@ -1871,7 +2254,7 @@ stage.addEventListener("pointerdown", function (e) {
   cv.setPointerCapture && cv.setPointerCapture(e.pointerId);
 });
 
-stage.addEventListener("pointermove", function (e) {
+stage?.addEventListener("pointermove", function (e) {
   const rect = cv.getBoundingClientRect();
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
 
@@ -1920,14 +2303,20 @@ function endPointer(e) {
   if (wasSingle && moved <= 4 && state.mode === "galaxy" && e.target === cv) {
     const rect = cv.getBoundingClientRect();
     const h = pick(e.clientX - rect.left, e.clientY - rect.top);
-    if (h) focusBody(h, true);
+    if (h) {
+      if (touring && h.kind === "planet") {
+        // Do nothing in tour mode for planets to avoid showing sidebar
+      } else {
+        focusBody(h, true);
+      }
+    }
     else { closePanel(); focusId = null; }
   }
 }
-stage.addEventListener("pointerup", endPointer);
-stage.addEventListener("pointercancel", endPointer);
+stage?.addEventListener("pointerup", endPointer);
+stage?.addEventListener("pointercancel", endPointer);
 
-cv.addEventListener("wheel", function (e) {
+cv?.addEventListener("wheel", function (e) {
   if (state.mode !== "galaxy") return;
   e.preventDefault();
   fly = null;
@@ -1935,25 +2324,35 @@ cv.addEventListener("wheel", function (e) {
 }, { passive: false });
 
 
-$("#btnLaunch").addEventListener("click", beginLaunch);
-$("#btnSkip").addEventListener("click", function () {
-  $("#boot").classList.add("gone"); state.launched = true; enterGalaxy(1.2);
+$("#btnLaunch")?.addEventListener("click", beginLaunch);
+$("#btnSkip")?.addEventListener("click", function () {
+  $("#boot")?.classList.add("gone"); state.launched = true; enterGalaxy(1.2);
 });
-$("#btnResume2").addEventListener("click", function () {
-  $("#boot").classList.add("gone"); state.launched = true; enterGalaxy(0.6); openResume();
+$("#btnResume2")?.addEventListener("click", function () {
+  $("#boot")?.classList.add("gone"); state.launched = true; enterGalaxy(0.6); openResume();
 });
-$("#btnResume").addEventListener("click", function () {
-  $("#resume").classList.contains("open") ? closeResume() : openResume();
-});
-$("#btnReset").addEventListener("click", resetView);
-$("#btnTour").addEventListener("click", startTour);
-$("#btnHelp").addEventListener("click", function () {
+$("#btnResume")?.addEventListener("click", function () { stopTour(); openResume(); });
+$("#btnReset")?.addEventListener("click", resetView);
+$("#btnTour")?.addEventListener("click", startTour);
+$("#tourNextBtn")?.addEventListener("click", nextTourStep);
+$("#tourPrevBtn")?.addEventListener("click", prevTourStep);
+$("#tourEndBtn")?.addEventListener("click", stopTour);
+const tourToggleBtnEl = $("#tourToggleBtn");
+if (tourToggleBtnEl) {
+  tourToggleBtnEl.addEventListener("click", function (e) {
+    e.stopPropagation();
+    const overlay = $("#tourGuideOverlay");
+    if (overlay) overlay.classList.toggle("collapsed");
+  });
+}
+$("#btnHelp")?.addEventListener("click", function () {
   toast("drag orbit · scroll zoom · T shell · R recruiter view · I scan · Esc skip/close · Home reset");
 });
 
-$("#panelClose").addEventListener("click", function () { closePanel(); focusId = null; });
-$("#termClose").addEventListener("click", closeTerm);
-$("#term").addEventListener("pointerdown", function (e) {
+$("#panelClose")?.addEventListener("click", function () { closePanel(); focusId = null; });
+
+$("#termClose")?.addEventListener("click", closeTerm);
+$("#term")?.addEventListener("pointerdown", function (e) {
   const t = e.target;
   if (t === inp) return;
   if (t.closest && t.closest("button,a,input")) return;
@@ -1962,10 +2361,10 @@ $("#term").addEventListener("pointerdown", function (e) {
   e.preventDefault();
   focusShell();
 });
-$("#idClose").addEventListener("click", closeIdCard);
-$("#termwrap").addEventListener("pointerdown", function (e) { if (e.target === this) closeTerm(); });
-$("#idcard").addEventListener("pointerdown", function (e) { if (e.target === this) closeIdCard(); });
-$("#panelBody").addEventListener("click", function (e) {
+$("#idClose")?.addEventListener("click", closeIdCard);
+$("#termwrap")?.addEventListener("pointerdown", function (e) { if (e.target === this) closeTerm(); });
+$("#idcard")?.addEventListener("pointerdown", function (e) { if (e.target === this) closeIdCard(); });
+$("#panelBody")?.addEventListener("click", function (e) {
   const f = e.target.closest("[data-focus]");
   if (f) { const b = world.byId[f.getAttribute("data-focus")]; if (b) focusBody(b, false); return; }
   if (e.target.closest("[data-scan]")) { resetScan(); startScan(); }
@@ -1985,6 +2384,7 @@ document.addEventListener("keydown", function (e) {
   }
   if (e.key === "Escape") {
     if (state.mode === "ascent" || state.mode === "warp") { e.preventDefault(); skipIntro(); return; }
+    if (touring) { stopTour(); return; }
     if ($("#termwrap").classList.contains("open")) return closeTerm();
     if ($("#idcard").classList.contains("open")) return closeIdCard();
     if ($("#resume").classList.contains("open")) return closeResume();
@@ -1994,7 +2394,7 @@ document.addEventListener("keydown", function (e) {
   if (typing) return;
   const k = e.key.toLowerCase();
   if (k === "t") { openTerm(); }
-  else if (k === "r") { $("#resume").classList.contains("open") ? closeResume() : openResume(); }
+  else if (k === "r") { startTour(); }
   else if (k === "i") { resetScan(); startScan(); }
   else if (k === "home") { resetView(); }
   else if (k === "?") { $("#btnHelp").click(); }
@@ -2484,6 +2884,7 @@ function frame(now) {
   stepTweens(dt);
   stepFly(dt);
   stepFieldTimer(dt);
+  updateScreenCenter(dt);
 
 
   if (trackId && world.byId[trackId]) {
@@ -2500,9 +2901,14 @@ function frame(now) {
   else {
     updateWorld(dt);
     updateAsteroids(dt);
+    updateNavSatellite(dt);
     drawSky(T);
     drawSystem();
     drawAsteroids();
+    if (navSatellite.active && navSatellite.screenPos) {
+      drawArtificialSatellite(navSatellite.screenPos);
+    }
+    updateTourPointerSvg();
   }
 
   if (state.flash > 0.001) {
@@ -2526,7 +2932,7 @@ function frame(now) {
   requestAnimationFrame(function (t) { last = t; frame(t); });
 
   cv.setAttribute("tabindex", "0");
-  cv.addEventListener("keydown", function (e) {
+  cv?.addEventListener("keydown", function (e) {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTerm(); }
   });
   if (TOUCH) $("#hint") && ($("#hint").style.display = "none");
